@@ -15,6 +15,7 @@ from scipy.stats import linregress
 nivelSignificancia = 0.95
 Alfa = 1 - nivelSignificancia
 
+
 def ValoresAlCuadrado(archivo_csv):
     df = pd.read_csv(archivo_csv)
     
@@ -79,6 +80,7 @@ def CalcularMedias(archivo_csv):
     return  media_Oxido, media_Humedad, media_Temperatura, media_Presion
 
 archivo_csv = r'C:\Users\User\Documents\Ricardo\Proyecto Estadistica III\Datos.csv'
+df = pd.read_csv(archivo_csv)
 OxidoNT, HumedadT, TemperaturaT, PresionT = ContarTotales(archivo_csv)
 n = 30
 OxidoNT_cuadrado, HumedadT_cuadrado, TemperaturaT_cuadrado, PresionT_cuadrado = ContarTotalesAlCuadrado(archivo_csv)
@@ -195,10 +197,51 @@ def generar_tabla_correlacion(df, var_x, var_y):
     df_resultado.loc["Σ"] = suma_columnas
 
     return df_resultado
-df = pd.read_csv(archivo_csv)
+
+def generar_tabla_regresion(df):
+        
+    df_resultadoR = pd.DataFrame({
+        "y (Óxido nitroso)": df["Óxido nitroso"].round(4),
+        "x1 (Humedad)": df["Humedad(x1)"].round(4),
+        "x2 (Temperatura)": df["Temperatura(x2)"].round(4),
+        "x3 (Presión)": df["Presión(x3)"].round(4),
+        "x1²": (df["Humedad(x1)"] ** 2).round(4),
+        "x1 * x2": (df["Humedad(x1)"] * df["Temperatura(x2)"]).round(4),
+        "x1 * x3": (df["Humedad(x1)"] * df["Presión(x3)"]).round(4),
+        "x1 * y": (df["Humedad(x1)"] * df["Óxido nitroso"]).round(4),
+        "x2²": (df["Temperatura(x2)"] ** 2).round(4),
+        "x2 * x3": (df["Temperatura(x2)"] * df["Presión(x3)"]).round(4),
+        "x2 * y": (df["Temperatura(x2)"] * df["Óxido nitroso"]).round(4),
+        "x3²": (df["Presión(x3)"] ** 2).round(4),
+        "x3 * y": (df["Presión(x3)"] * df["Óxido nitroso"]).round(4)
+    })
+    
+    suma_columnasR = {
+        "y (Óxido nitroso)": df["Óxido nitroso"].sum(),
+        "x1 (Humedad)": df["Humedad(x1)"].sum(),
+        "x2 (Temperatura)": df["Temperatura(x2)"].sum(),
+        "x3 (Presión)": df["Presión(x3)"].sum(),
+        "x1²": (df["Humedad(x1)"] ** 2).sum(),
+        "x1 * x2": (df["Humedad(x1)"] * df["Temperatura(x2)"]).sum(),
+        "x1 * x3": (df["Humedad(x1)"] * df["Presión(x3)"]).sum(),
+        "x1 * y": (df["Humedad(x1)"] * df["Óxido nitroso"]).sum(),
+        "x2²": (df["Temperatura(x2)"] ** 2).sum(),
+        "x2 * x3": (df["Temperatura(x2)"] * df["Presión(x3)"]).sum(),
+        "x2 * y": (df["Temperatura(x2)"] * df["Óxido nitroso"]).sum(),
+        "x3²": (df["Presión(x3)"] ** 2).sum(),
+        "x3 * y": (df["Presión(x3)"] * df["Óxido nitroso"]).sum()
+    }
+
+    df_resultadoR.loc["Σxt"] = suma_columnasR
+
+    return df_resultadoR
+
+df_resultadoR = generar_tabla_regresion(df)
+
 tabla_humedad_presion = generar_tabla_correlacion(df, "Humedad(x1)", "Presión(x3)")
 tabla_temperatura_presion = generar_tabla_correlacion(df, "Temperatura(x2)", "Presión(x3)")
 
+print("\n")
 print("Tabla Humedad vs Presión:")
 print(tabulate(tabla_humedad_presion, headers="keys", tablefmt="grid"))
 print("\n")
@@ -222,6 +265,71 @@ slope_temp, intercept_temp, _, _, _ = linregress(df["Temperatura(x2)"], df["Pres
 
 print(f"Ecuación de la recta para Humedad vs Presión: y = {round(slope_hum, 4)} * x + {round(intercept_hum, 4)}")
 print(f"Ecuación de la recta para Temperatura vs Presión: y = {round(slope_temp, 4)} * x + {round(intercept_temp, 4)}")
+
+print("\n")
+print(tabulate(df_resultadoR, headers="keys", tablefmt="grid"))
+
+
+
+def gauss_jordan(A, B):
+    AB = np.hstack([A, B.reshape(-1, 1)])  # Matriz ampliada [A|B]
+    n = len(B)
+    
+    for i in range(n):
+        # Hacer el pivote 1
+        AB[i] = AB[i] / AB[i, i]
+        
+        
+        for j in range(n):
+            if i != j:
+                AB[j] = AB[j] - AB[j, i] * AB[i]
+    
+    return AB[:, -1]  
+
+def calcular_regresion(df_resultadoR):
+    
+    sumatorias = df_resultadoR.loc["Σxt"]
+    n = len(df_resultadoR) - 1  
+    
+    
+    A = np.array([
+        [n, sumatorias["x1 (Humedad)"], sumatorias["x2 (Temperatura)"]],
+        [sumatorias["x1 (Humedad)"], sumatorias["x1²"], sumatorias["x1 * x2"]],
+        [sumatorias["x2 (Temperatura)"], sumatorias["x1 * x2"], sumatorias["x2²"]]
+    ])
+    
+    
+    det_A = np.linalg.det(A)
+    if np.isclose(det_A, 0):
+        raise ValueError("La matriz A no es invertible (det(A) = 0). El sistema no tiene solución única.")
+    
+    
+    B = np.array([
+        sumatorias["x1 (Humedad)"],
+        sumatorias["x1 * x2"],
+        sumatorias["x1 * x3"]
+    ])
+    
+    
+    print("Matriz ampliada [A|B]:")
+    print(tabulate(np.hstack([A, B.reshape(-1, 1)]), headers=["B0", "B1", "B2", "B"], tablefmt='grid', floatfmt='.4f'))
+    
+    
+    resultados = gauss_jordan(A, B)
+    
+    # Mostrar resultados
+    print("\nResultados:")
+    print(f"B0 = {resultados[0]:.4f}")
+    print(f"B1 = {resultados[1]:.4f}")
+    print(f"B2 = {resultados[2]:.4f}")
+    
+    return resultados
+
+# Calcular los coeficientes de regresión
+coeficientes = calcular_regresion(df_resultadoR)
+
+
+
 
 def graficar_regresion(df, var_x, var_y, slope, intercept, title):
     plt.figure(figsize=(8, 6))
@@ -263,6 +371,3 @@ plt.title("Distribución F de Fisher con Región de Rechazo y Aceptación", font
 plt.legend(loc='upper right', fontsize=11)
 plt.grid(True, which='both', linestyle='--', linewidth=0.5)
 plt.show()
-
-
-
