@@ -79,7 +79,7 @@ def CalcularMedias(archivo_csv):
     
     return  media_Oxido, media_Humedad, media_Temperatura, media_Presion
 
-archivo_csv = r'C:\Users\User\Documents\Ricardo\Proyecto Estadistica III\Datos.csv'
+archivo_csv = r'C:\Users\User\Documents\Riki\Estadistica III\Datos.csv'
 df = pd.read_csv(archivo_csv)
 OxidoNT, HumedadT, TemperaturaT, PresionT = ContarTotales(archivo_csv)
 n = 30
@@ -271,6 +271,37 @@ print(tabulate(df_resultadoR, headers="keys", tablefmt="grid"))
 
 
 
+y = df["Óxido nitroso"].values
+x1 = df["Humedad(x1)"].values
+x2 = df["Temperatura(x2)"].values
+x3 = df["Presión(x3)"].values
+
+# Tabla de Regresión Múltiple
+dfmultiple = pd.DataFrame({
+    "Óxido Nitroso(y)": y,
+    "Humedad(x1)": x1,
+    "Temperatura(x2)": x2,
+    "Presión(x3)": x3,
+    "y^2": np.square(y),
+    "x1^2": np.square(x1),
+    "x2^2": np.square(x2),
+    "x3^2": np.square(x3),
+    "y*x1": np.multiply(y, x1),
+    "y*x2": np.multiply(y, x2),
+    "y*x3": np.multiply(y, x3),
+    "x1*x2": np.multiply(x1, x2),
+    "x2*x3": np.multiply(x2, x3),
+    "x1*x3": np.multiply(x1, x3)
+})
+
+sumatorias = dfmultiple.sum()
+dfmultiple.loc["-------------"] = ["-" * 10] * dfmultiple.shape[1]
+dfmultiple.loc["Σ"] = sumatorias
+
+print("\nTabla de Contingencia con Datos Calculados:")
+
+
+# Función para resolver el sistema de ecuaciones usando el método de Gauss-Jordan
 def gauss_jordan(A, B):
     AB = np.hstack([A, B.reshape(-1, 1)])  # Matriz ampliada [A|B]
     n = len(B)
@@ -279,55 +310,67 @@ def gauss_jordan(A, B):
         # Hacer el pivote 1
         AB[i] = AB[i] / AB[i, i]
         
-        
         for j in range(n):
             if i != j:
                 AB[j] = AB[j] - AB[j, i] * AB[i]
     
-    return AB[:, -1]  
+    return AB  # Retornar la matriz ampliada resuelta
 
-def calcular_regresion(df_resultadoR):
-    
-    sumatorias = df_resultadoR.loc["Σxt"]
-    n = len(df_resultadoR) - 1  
-    
-    
-    A = np.array([
-        [n, sumatorias["x1 (Humedad)"], sumatorias["x2 (Temperatura)"]],
-        [sumatorias["x1 (Humedad)"], sumatorias["x1²"], sumatorias["x1 * x2"]],
-        [sumatorias["x2 (Temperatura)"], sumatorias["x1 * x2"], sumatorias["x2²"]]
-    ])
-    
-    
-    det_A = np.linalg.det(A)
-    if np.isclose(det_A, 0):
-        raise ValueError("La matriz A no es invertible (det(A) = 0). El sistema no tiene solución única.")
-    
-    
-    B = np.array([
-        sumatorias["x1 (Humedad)"],
-        sumatorias["x1 * x2"],
-        sumatorias["x1 * x3"]
-    ])
-    
-    
-    print("Matriz ampliada [A|B]:")
-    print(tabulate(np.hstack([A, B.reshape(-1, 1)]), headers=["B0", "B1", "B2", "B"], tablefmt='grid', floatfmt='.4f'))
-    
-    
-    resultados = gauss_jordan(A, B)
-    
-    # Mostrar resultados
-    print("\nResultados:")
-    print(f"B0 = {resultados[0]:.4f}")
-    print(f"B1 = {resultados[1]:.4f}")
-    print(f"B2 = {resultados[2]:.4f}")
-    
-    return resultados
+# Función para calcular la regresión
+def calcular_regresion(dfmultiple):
+    try:
+        # Acceder a la fila de sumatorias correctamente
+        sumatorias = dfmultiple.loc["Σ"]  
+        n = len(y)  # Número de observaciones
+        
+        # Construir la matriz A y el vector B
+        A = np.array([
+            [n, sumatorias["Temperatura(x2)"], sumatorias["Presión(x3)"]],
+            [sumatorias["Temperatura(x2)"], sumatorias["x2^2"], sumatorias["x2*x3"]],
+            [sumatorias["Presión(x3)"], sumatorias["x2*x3"], sumatorias["x3^2"]]
+        ])
+        
+        # Verificar si la matriz A es invertible
+        det_A = np.linalg.det(A)
+        if np.isclose(det_A, 0):
+            raise ValueError("La matriz A no es invertible (det(A) = 0). El sistema no tiene solución única.")
+        
+        # Vector B
+        B = np.array([
+            sumatorias["Humedad(x1)"],
+            sumatorias["x1*x2"],
+            sumatorias["x1*x3"]
+        ])
+                                     
+        
+        # Mostrar la matriz ampliada [A|B]
+        print("Matriz ampliada [A|B]:")
+        print(tabulate(np.hstack([A, B.reshape(-1, 1)]), headers=["B0", "B1", "B2", "B"], tablefmt='grid', floatfmt='.4f'))
+        
+        
+        # Resolver el sistema usando Gauss-Jordan
+        matriz_resuelta = gauss_jordan(A, B)
+        
+        # Mostrar la matriz resultante
+        print("\nMatriz resultante [A|B]:")
+        print(tabulate(matriz_resuelta, headers=["B0", "B1", "B2", "B"], tablefmt='grid', floatfmt='.4f'))
+        
+        # Extraer los resultados
+        resultados = matriz_resuelta[:, -1]
+        
+        # Mostrar resultados
+        print("\nResultados:")
+        print(f"B0 = {resultados[0]:.4f}")
+        print(f"B1 = {resultados[1]:.4f}")
+        print(f"B2 = {resultados[2]:.4f}")
+        
+        return resultados
+    except Exception as e:
+        print(f"Error al calcular la regresión: {e}")
+        return None
 
 # Calcular los coeficientes de regresión
-coeficientes = calcular_regresion(df_resultadoR)
-
+coeficientes = calcular_regresion(dfmultiple)
 
 
 
